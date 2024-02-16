@@ -14,18 +14,16 @@
                 switch (action) {
                     case 'stop': {
                         const pauseTime = new Date().getTime() - context!.startDate!.getTime();
-                        setContext({
+                        return setContext({
                             pauseTime,
                             startDate: null,
                         });
-                        return;
                     }
                     case 'reset': {
-                        setContext({
+                        return setContext({
                             pauseTime: null,
                             startDate: null,
                         });
-                        return;
                     }
                     default: {
                         return;
@@ -38,13 +36,12 @@
                 stop: 'stopped',
                 reset: 'stopped',
             },
-            effect({ setContext, signal }) {
+            effect({ setContext }) {
                 const pausedTime = stopwatch.context.pauseTime || 0;
                 setContext({
                     startDate: new Date(new Date().getTime() - pausedTime),
                     pauseTime: null,
                 });
-                signal.onabort = () => console.log('aborted');
             }
         }
     }, 'stopped', {
@@ -56,7 +53,7 @@
 <h1>Stopwatch</h1>
 
 <output>{ stopwatch.state }</output>
-<output><LiveTime startDate={stopwatch.context.startDate} pauseTime={stopwatch.context.pauseTime}></LiveTime></output>
+<output><LiveTime {...stopwatch.context} /></output>
 <br>
 <br>
 <button on:click={() => stopwatch.dispatch('start') }>Start</button>
