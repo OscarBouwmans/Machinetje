@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { SelectState } from '$lib/index.js';
     import { stopwatchMachine } from './example-machines/stopwatch.machine';
     import LiveTime from './LiveTime.svelte';
 
@@ -15,3 +16,17 @@
 <button on:click={() => stopwatch.dispatch('stop') }>Stop</button>
 <button on:click={() => stopwatch.dispatch('reset') }>Reset</button>
 
+<hr>
+
+<SelectState machinetje={stopwatch}>
+    {#snippet stopped({ dispatch })}
+        <p>Stopped</p>
+        <button onclick={() => dispatch('start')}>Start</button>
+        <button onclick={() => dispatch('reset')}>Reset</button>
+    {/snippet}
+    {#snippet running({ dispatch })}
+        <p>Running</p>
+        <button onclick={() => dispatch('stop')}>Stop</button>
+    {/snippet}
+    <p>Fallback</p>
+</SelectState>
