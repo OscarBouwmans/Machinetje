@@ -1,34 +1,65 @@
 <script lang="ts">
     import { machinetje } from '$lib/machinetje/machinetje.svelte';
+    import LiveTime from './LiveTime.svelte';
 
-    let time = 0;
+    let time = $state(0);
 
     const stopwatch = machinetje({
         stopped: {
             on: {
-                start: 'running'
+                start: 'running',
+                reset: 'stopped',
+            },
+            effect({ action, context, setContext }) {
+                switch (action) {
+                    case 'stop': {
+                        const pauseTime = new Date().getTime() - context!.startDate!.getTime();
+                        setContext({
+                            pauseTime,
+                            startDate: null,
+                        });
+                        return;
+                    }
+                    case 'reset': {
+                        setContext({
+                            pauseTime: null,
+                            startDate: null,
+                        });
+                        return;
+                    }
+                    default: {
+                        return;
+                    }
+                }
             }
         },
         running: {
             on: {
-                stop: 'stopped'
+                stop: 'stopped',
+                reset: 'stopped',
             },
-            effect() {
-                const interval = setInterval(() => {
-                    time += 1;
-                }, 1000);
-                return () => clearInterval(interval);
+            effect({ setContext, signal }) {
+                const pausedTime = stopwatch.context.pauseTime || 0;
+                setContext({
+                    startDate: new Date(new Date().getTime() - pausedTime),
+                    pauseTime: null,
+                });
+                signal.onabort = () => console.log('aborted');
             }
         }
-    }, 'stopped');
+    }, 'stopped', {
+        startDate: null as Date | null,
+        pauseTime: null as number | null,
+    });
 </script>
 
 <h1>Stopwatch</h1>
 
 <output>{ stopwatch.state }</output>
-<output>{ time }</output>
+<output><LiveTime startDate={stopwatch.context.startDate} pauseTime={stopwatch.context.pauseTime}></LiveTime></output>
 <br>
 <br>
 <button on:click={() => stopwatch.dispatch('start') }>Start</button>
 <button on:click={() => stopwatch.dispatch('stop') }>Stop</button>
+<button on:click={() => stopwatch.dispatch('reset') }>Reset</button>
 

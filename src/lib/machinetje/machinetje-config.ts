@@ -13,7 +13,7 @@ export type MachinetjeConfig<
 };
 
 export type EffectjeEnvironment<Action extends string, Context> = {
-    action: Action;
+    action: Action | Symbol;
     params: any[];
     context?: Readonly<Context>;
     setContext: (context: Context) => void;

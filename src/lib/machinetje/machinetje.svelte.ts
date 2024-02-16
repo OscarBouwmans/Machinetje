@@ -1,10 +1,11 @@
 import { unstate } from "svelte";
 import type { EffectjeCleanup, MachinetjeConfig } from "./machinetje-config.js";
+import { initialAction } from "./default-actions.js";
 
 export function machinetje<
+    Context,
     State extends string,
     Action extends string,
-    Context = undefined,
 >(
     config: MachinetjeConfig<State, Action, Context>,
     initialState: State,
@@ -17,6 +18,8 @@ export function machinetje<
 
     let runningEffect: EffectjeCleanup | undefined;
     let abortController: AbortController | undefined;
+
+    enterCurrentState(initialAction as any, []);
 
     function dispatch(action: Action, ...params: any[]) {
         const targetState = config[state].on?.[action];
@@ -56,7 +59,7 @@ export function machinetje<
             },
             dispatch(action: Action, ...params: any[]) {
                 if (signal.aborted) {
-                    console.warn('Cannot dispatch an action after the effect has been aborted.');
+                    console.warn('Cannot dispatch an action after the effect has expired.');
                     return;
                 }
                 dispatch(action, ...params);
@@ -78,7 +81,7 @@ export function machinetje<
         runningEffect = undefined;
     }
     
-    return {
+    return Object.freeze({
         get state() {
             return state;
         },
@@ -89,7 +92,7 @@ export function machinetje<
             return finalStates.includes(state);
         },
         dispatch,
-    }
+    });
 };
 
 function statesWithoutActions(config: MachinetjeConfig<any, any, any>) {
