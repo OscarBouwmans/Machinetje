@@ -1,7 +1,7 @@
 import { unstate } from "svelte";
 import type { MachinetjeConfig } from "./machinetje-config.type.js";
 import { initialAction } from "./default-actions.js";
-import type { EffectjeCleanup } from "./effectje.type.js";
+import type { EffectjeCleanup, EffectjeEnvironment } from "./effectje.type.js";
 import { statesWithoutActions } from "./internal/states-without-actions.js";
 
 export function machinetje<
@@ -49,7 +49,6 @@ export function machinetje<
             let contextMayBeUpdated = true;
             const environment = {
                 action,
-                params,
                 get context() {
                     return context;
                 },
@@ -68,9 +67,9 @@ export function machinetje<
                     dispatch(action, ...params);
                 },
                 signal,
-            };
+            } satisfies EffectjeEnvironment<Action, Context>;
 
-            const cleanup = effect(environment) ?? undefined;
+            const cleanup = effect(environment, ...params) ?? undefined;
             contextMayBeUpdated = false;
 
             if (!(cleanup instanceof Promise)) {
