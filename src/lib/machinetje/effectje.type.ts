@@ -1,17 +1,4 @@
 
-export type MachinetjeConfig<
-    State extends string,
-    Action extends string,
-    Context,
-> = {
-    [state in State]: {
-        on?: {
-            [action in Action]?: State;
-        },
-        effect?: Effectje<Action, Context>;
-    }
-};
-
 export type EffectjeEnvironment<Action extends string, Context> = {
     action: Action | Symbol;
     params: any[];
