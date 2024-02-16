@@ -163,8 +163,8 @@ const heavyProcessingMachine = machinetje({
 function doTheHardWork({ dispatch }) {
     const worker = new Worker('heavy-script.js');
 
-    worker.onmessage = (e) => {
-        dispatch('result', e.message);
+    worker.onmessage = (event) => {
+        dispatch('result', event.data);
     };
 
     return cleanup() {
