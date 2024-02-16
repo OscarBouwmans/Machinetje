@@ -1,7 +1,7 @@
 <script lang="ts">
     let { startDate, pauseTime } = $props<{
-        startDate: Date,
-        pauseTime: number,
+        startDate?: Date | null,
+        pauseTime?: number | null,
     }>();
 
     let displayTime = $state<string>();
@@ -14,7 +14,7 @@
 
         let animFrame = requestAnimationFrame(loop);
         function loop() {
-            displayTime = format(new Date().getTime() - startDate);
+            displayTime = format(new Date().getTime() - (startDate?.getTime() ?? 0));
             animFrame = requestAnimationFrame(loop);
         };
         return () => cancelAnimationFrame(animFrame);

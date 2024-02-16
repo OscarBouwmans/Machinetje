@@ -1,6 +1,6 @@
 <script lang="ts">
     import { SelectState } from '$lib/index.js';
-    import { stopwatchMachine } from './example-machines/stopwatch.machine';
+    import { stopwatchMachine } from './example-machines/stopwatch.machine.js';
     import LiveTime from './LiveTime.svelte';
 
     const stopwatch = stopwatchMachine();
@@ -19,12 +19,12 @@
 <hr>
 
 <SelectState machinetje={stopwatch}>
-    {#snippet stopped({ dispatch })}
+    {#snippet stopped({ dispatch }: { dispatch: (event: 'start' | 'reset') => void })}
         <p>Stopped</p>
         <button onclick={() => dispatch('start')}>Start</button>
         <button onclick={() => dispatch('reset')}>Reset</button>
     {/snippet}
-    {#snippet running({ dispatch })}
+    {#snippet running({ dispatch }: { dispatch: (event: 'stop') => void })}
         <p>Running</p>
         <button onclick={() => dispatch('stop')}>Stop</button>
     {/snippet}
