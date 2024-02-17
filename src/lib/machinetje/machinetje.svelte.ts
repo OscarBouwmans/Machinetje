@@ -19,7 +19,7 @@ export function machinetje<
         let state = $state(initialState);
         let context = $state(Object.freeze(unstate(initialContext)));
 
-        let runningEffect: EffectjeCleanup | undefined;
+        let runningEffectCleanup: EffectjeCleanup | undefined;
         let abortController: AbortController | undefined;
 
         enterCurrentState(initialAction as any, []);
@@ -53,6 +53,10 @@ export function machinetje<
                     return context;
                 },
                 setContext: (newContext: Context) => {
+                    if (signal.aborted) {
+                        console.warn('Cannot set context after the effect has expired.');
+                        return;
+                    }
                     if (!contextMayBeUpdated) {
                         console.warn('Context can only be set synchronously during effect initialisation.');
                         return;
@@ -73,14 +77,14 @@ export function machinetje<
             contextMayBeUpdated = false;
 
             if (!(cleanup instanceof Promise)) {
-                runningEffect = cleanup;
+                runningEffectCleanup = cleanup;
             }
         }
 
         function exitCurrentState() {
             abortController?.abort();
-            runningEffect?.();
-            runningEffect = undefined;
+            runningEffectCleanup?.();
+            runningEffectCleanup = undefined;
         }
     
         return Object.freeze({
