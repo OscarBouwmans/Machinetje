@@ -9,10 +9,16 @@ _Machinetje_ in Dutch means _little machine_, which perfectly describes this pac
 Start by describing the possible states and their transitions, ending with the initial state. This may be done in a seperate `.js`/`.ts` file, to keep the logic seperate from your Components.
 
 ```JavaScript
+// resource-machine.js
+
+import { machinetje } from 'machinetje';
+
 export const resourceMachine = machinetje({
     idle: {
+//  👆 state
         on: {
             download: 'loading'
+//          👆 action    👆 target state
         }
     },
     loading: {
@@ -36,14 +42,17 @@ export const resourceMachine = machinetje({
 In your component files, you can start a new instance of the machinetje:
 
 ```HTML
+<!-- SomeComponent.svelte -->
+
 <script>
-    import { resourceMachine } from '…';
+    import { resourceMachine } from './resource-machine.js';
 
     const resource = resourceMachine();
 
     function download() {
         // dispatch actions to your machinetje to change its state:
         resource.dispatch('download');
+        //                 👆 action
     }
 
     function cancel() {
@@ -64,9 +73,11 @@ In your component files, you can start a new instance of the machinetje:
 Alternatively, use the `<SelectState>` helper component with snippets:
 
 ```HTML
+<!-- SomeComponent.svelte -->
+
 <script>
     import { SelectState } from 'machinetje';
-    import { resourceMachine } from '…';
+    import { resourceMachine } from './resource-machine.js';
 
     const resource = resourceMachine();
 </script>
@@ -92,6 +103,8 @@ Use `context` to store data (a.k.a. extended state) into your machinetje, such a
 Effects let you write to the context of your machinetje, and interact with the world around it. Within effects, use the provided `dispatch` property to pass on data to the next state via actions.
 
 ```JavaScript
+// resource-machine.js
+
 export const resourceMachine = machinetje({
     idle: {
         on: {
@@ -107,6 +120,7 @@ export const resourceMachine = machinetje({
         effect: loadResource
     },
     done: {
+        // inline effect to save action data in the machinetje's context
         effect: ({ setContext }, responseText) => setContext({ responseText })
     },
     error: {
@@ -142,6 +156,8 @@ When the effect is an `async` function, use the provided `signal` to handle canc
 Alternatively, a sync function can be provided that returns a cleanup function:
 
 ```JavaScript
+// heavy-processing-machine.js
+
 const heavyProcessingMachine = machinetje({
     ready: {
         on: {
@@ -172,7 +188,9 @@ function doTheHardWork({ dispatch }) {
     };
 }
 
-// running the machine:
+// AnotherComponent.svelte
+import { heavyProcessingMachine } from './heavy-processing-machine.js';
+
 const heavyProcessing = heavyProcessingMachine();
 heavyProcessing.dispatch('start');
 heavyProcessing.dispatch('cancel'); // <= causes the cleanup function to run
