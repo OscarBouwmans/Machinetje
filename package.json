@@ -1,6 +1,23 @@
 {
 	"name": "machinetje",
-	"version": "0.0.1",
+	"version": "0.1.0",
+	"author": "Oscar Bouwmans",
+	"license": "MIT",
+	"keywords": [
+	  "state",
+	  "machine",
+	  "state machine",
+	  "svelte",
+	  "sveltekit"
+	],
+	"bugs": {
+	  "url": "https://github.com/OscarBouwmans/Machinetje/issues"
+	},
+	"homepage": "https://github.com/OscarBouwmans/Machinetje#readme",
+	"repository": {
+	  "type": "git",
+	  "url": "git+https://github.com/OscarBouwmans/Machinetje.git"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build && npm run package",
@@ -9,7 +26,7 @@
 		"prepublishOnly": "npm run package",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-		"test": "vitest"
+		"test": "vitest run"
 	},
 	"exports": {
 		".": {
