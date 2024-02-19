@@ -13,9 +13,9 @@ const testMachinetje = machinetje({
             toA: 'a',
             toB: 'b',
         },
-        effect(_, entry: () => void, exit: () => void) {
-            entry?.();
-            return exit;
+        effect({ context }) {
+            context.entry?.();
+            return context.exit;
         }
     },
     c: {
@@ -27,7 +27,7 @@ const testMachinetje = machinetje({
             dispatch('toB');
         }
     },
-}, 'a');
+}, 'a', {} as { entry?: () => void, exit?: () => void });
 
 describe('void effects', () => {
     test('effects are started and cleaned up', () => {
@@ -35,7 +35,7 @@ describe('void effects', () => {
         const entry = vi.fn();
         const exit = vi.fn();
 
-        instance.dispatch('toB', entry, exit);
+        instance.dispatch('toB', { entry, exit });
         expect(entry).toHaveBeenCalledOnce();
         expect(exit).not.toHaveBeenCalled();
 
@@ -43,7 +43,7 @@ describe('void effects', () => {
         expect(entry).toHaveBeenCalledOnce();
         expect(exit).toHaveBeenCalledOnce();
         
-        instance.dispatch('toB', entry, exit);
+        instance.dispatch('toB', { entry, exit });
         instance.dispatch('toA');
         expect(entry).toHaveBeenCalledTimes(2);
         expect(exit).toHaveBeenCalledTimes(2);
@@ -52,7 +52,7 @@ describe('void effects', () => {
     test('effects do not run after invalid action', () => {
         const instance = testMachinetje();
         const spy = vi.fn();
-        instance.dispatch('toB', spy);
+        instance.dispatch('toB', { entry: spy });
         expect(spy).toHaveBeenCalled();
         instance.dispatch('toC');
         expect(spy).toHaveBeenCalledTimes(1);
@@ -62,8 +62,8 @@ describe('void effects', () => {
         const instance = testMachinetje();
         const entry = vi.fn();
         const exit = vi.fn();
-        instance.dispatch('toB', entry, exit);
-        instance.dispatch('toB', entry, exit);
+        instance.dispatch('toB', { entry, exit });
+        instance.dispatch('toB', { entry, exit });
         instance.dispatch('toA');
         expect(entry).toHaveBeenCalledTimes(2);
         expect(exit).toHaveBeenCalledTimes(2);

@@ -12,9 +12,9 @@ const testMachinetje = machinetje({
         on: {
             toA: 'a',
         },
-        async effect({ signal }, entry: () => void, abort: () => void) {
-            entry?.();
-            signal.onabort = abort;
+        async effect({ signal, context }) {
+            context.entry?.();
+            signal.onabort = () => context.abort?.();
             return new Promise((never) => never);
         }
     },
@@ -27,7 +27,7 @@ const testMachinetje = machinetje({
             dispatch('toA');
         }
     },
-}, 'a');
+}, 'a', {} as { entry?: () => void, abort?: () => void });
 
 describe('void effects', () => {
     test('signals are passed and aborted correctly', () => {
@@ -35,7 +35,7 @@ describe('void effects', () => {
         const entry = vi.fn();
         const abort = vi.fn();
 
-        instance.dispatch('toB', entry, abort);
+        instance.dispatch('toB', { entry, abort });
         expect(entry).toHaveBeenCalledOnce();
         expect(abort).not.toHaveBeenCalled();
 
@@ -43,7 +43,7 @@ describe('void effects', () => {
         expect(entry).toHaveBeenCalledOnce();
         expect(abort).toHaveBeenCalledOnce();
         
-        instance.dispatch('toB', entry, abort);
+        instance.dispatch('toB', { entry, abort });
         instance.dispatch('toA');
         expect(entry).toHaveBeenCalledTimes(2);
         expect(abort).toHaveBeenCalledTimes(2);
