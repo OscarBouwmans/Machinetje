@@ -6,6 +6,7 @@ const testMachinetje = machinetje({
         on: {
             toB: 'b',
             toC: 'c',
+            toD: 'd',
         },
     },
     b: {
@@ -13,9 +14,9 @@ const testMachinetje = machinetje({
             toA: 'a',
         },
         effect({ setContext, dispatch }) {
-            setContext('X');
+            setContext({ value: 'X' });
             dispatch('toA');
-            setContext('Y');
+            setContext({ value: 'Y' });
         }
     },
     c: {
@@ -27,13 +28,44 @@ const testMachinetje = machinetje({
             dispatch('toA');
         }
     },
-}, 'a');
+    d: {
+        on: {
+            toA: 'a',
+        },
+        async effect({ context, setContext }) {
+            setContext({ value: 'K' });
+            await Promise.resolve();
+            setContext({ value: 'L' });
+            context.testCallback?.();
+        }
+    }
+}, 'a', {} as { value?: string, testCallback?: () => void });
 
 describe('void effects', () => {
-    test('context can be set within effects, before subsequent dispatches', () => {
+    test('context is by default an empty object', () => {
+        const instance = testMachinetje();
+        expect(instance.context).toEqual({});
+    });
+
+    test('context can be recovered', () => {
+        const instance = testMachinetje(undefined, { value: 'Z' });
+        expect(instance.context).toEqual({ value: 'Z' });
+    });
+
+    test('context can be set within effects, and only before subsequent dispatches', () => {
         const instance = testMachinetje();
         
         instance.dispatch('toB');
-        expect(instance.context).toBe('X');
+        expect(instance.context).toEqual({ value: 'X' });
+    });
+
+    test('context cannot be set async', async () => {
+        const instance = testMachinetje();
+
+        const testCallback = vi.fn();
+        instance.dispatch('toD', { testCallback });
+        await Promise.resolve();
+        expect(testCallback).toHaveBeenCalled();
+        expect(instance.context).toEqual({ value: 'K' });
     });
 });

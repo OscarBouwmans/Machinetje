@@ -199,6 +199,28 @@ heavyProcessing.dispatch('start');
 heavyProcessing.dispatch('cancel'); // <= causes the cleanup function to run
 ```
 
+## State Machine Recovery
+
+Machinetjes can be recovered from a serialized state. Serializing a machinetje's full state is done by reading the `state` and `context` properties from the instance. The serialized state can be stored somewhere (e.g. in LocalStorage), and later used to recover the machinetje:
+
+```JavaScript
+import { someMachine } from './some-machine.js';
+
+const instance = someMachine();
+
+// storing the state
+const { state, context } = instance;
+const serialized = JSON.stringify({ state, context });
+localStorage.setItem('stored-state', serialized);
+
+// recovering the state
+const serialized = localStorage.getItem('stored-state');
+const { state, context } = JSON.parse(serialized);
+const recovered = someMachine(state, context);
+```
+
+Note that the recovered machinetje is a new instance. Any effects for the current recovered state will be run, even if they had already run to completion in the original instance.
+
 ## Examples
 
 ### Fetching a resource

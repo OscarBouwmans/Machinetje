@@ -16,9 +16,9 @@ export function machinetje<
 ) {
     const finalStates = statesWithoutActions(config);
 
-    return function interpret() {
-        let state = $state(initialState);
-        let context = $state(Object.freeze(unstate(initialContext ?? ({} as Context))));
+    return function interpret(recoveredState?: State, recoveredContext?: Context) {
+        let state = $state(recoveredState ?? initialState);
+        let context = $state(Object.freeze(unstate(recoveredContext ?? initialContext ?? ({} as Context))));
 
         let runningEffectCleanup: EffectjeCleanup | undefined;
         let abortController: AbortController | undefined;
