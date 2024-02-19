@@ -1,13 +1,14 @@
 import { unstate } from "svelte";
 import type { MachinetjeConfig } from "./machinetje-config.type.js";
+import type { MachinetjeContext, ContextOrUpdateContext } from "./machinetje-context.type.js";
 import { initialAction } from "./default-actions.js";
 import type { EffectjeCleanup, EffectjeEnvironment } from "./effectje.type.js";
 import { statesWithoutActions } from "./internal/states-without-actions.js";
 
 export function machinetje<
-    Context,
     State extends string,
     Action extends string,
+    Context extends MachinetjeContext,
 >(
     config: MachinetjeConfig<State, Action, Context>,
     initialState: State,
@@ -15,16 +16,18 @@ export function machinetje<
 ) {
     const finalStates = statesWithoutActions(config);
 
-    return function interpret() {
-        let state = $state(initialState);
-        let context = $state(Object.freeze(unstate(initialContext)));
+    return function interpret(recoveredState?: State, recoveredContext?: Context) {
+        let state = $state(recoveredState ?? initialState);
+        let context = $state(Object.freeze(unstate(recoveredContext ?? initialContext ?? ({} as Context))));
 
         let runningEffectCleanup: EffectjeCleanup | undefined;
         let abortController: AbortController | undefined;
 
-        enterCurrentState(initialAction as any, []);
+        enterCurrentState(initialAction as any);
 
-        function dispatch(action: Action, ...params: any[]) {
+        function dispatch(action: Action, context?: Context): void
+        function dispatch(action: Action, updateContext?: (context: Context) => Context): void
+        function dispatch(action: Action, setContext?: ContextOrUpdateContext<Context>) {
             const targetState = config[state].on?.[action];
             if (!targetState) {
                 return;
@@ -34,10 +37,11 @@ export function machinetje<
             }
             exitCurrentState();
             state = targetState;
-            enterCurrentState(action, params);
+            updateContext(setContext);
+            enterCurrentState(action);
         };
 
-        function enterCurrentState(action: Action, params: any[]) {
+        function enterCurrentState(action: Action) {
             const { effect } = config[state];
             if (!effect) {
                 return;
@@ -63,22 +67,33 @@ export function machinetje<
                     }
                     context = Object.freeze(unstate(newContext));
                 },
-                dispatch(action: Action, ...params: any[]) {
+                dispatch(action: Action, setContext?: Parameters<typeof dispatch>[1]) {
                     if (signal.aborted) {
                         console.warn('Cannot dispatch an action after the effect has expired.');
                         return;
                     }
-                    dispatch(action, ...params);
+                    dispatch(action, setContext);
                 },
                 signal,
             } satisfies EffectjeEnvironment<Action, Context>;
 
-            const cleanup = effect(environment, ...params) ?? undefined;
+            const cleanup = effect(environment) ?? undefined;
             contextMayBeUpdated = false;
 
             if (!(cleanup instanceof Promise)) {
                 runningEffectCleanup = cleanup;
             }
+        }
+
+        function updateContext(cOrSetC?: ContextOrUpdateContext<Context>) {
+            if (!cOrSetC) {
+                return;
+            }
+            if (typeof cOrSetC === 'function') {
+                context = cOrSetC(unstate(cOrSetC(context)));
+                return;
+            }
+            context = Object.freeze(unstate(cOrSetC));
         }
 
         function exitCurrentState() {

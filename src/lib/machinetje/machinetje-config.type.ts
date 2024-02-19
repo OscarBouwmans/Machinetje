@@ -1,9 +1,10 @@
 import type { Effectje } from "./effectje.type.js";
+import type { MachinetjeContext } from "./machinetje-context.type.js";
 
 export type MachinetjeConfig<
     State extends string,
     Action extends string,
-    Context,
+    Context extends MachinetjeContext,
 > = {
     [state in State]: {
         on?: {

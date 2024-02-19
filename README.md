@@ -13,29 +13,40 @@ Start by describing the possible states and their transitions, ending with the i
 
 import { machinetje } from 'machinetje';
 
-export const resourceMachine = machinetje({
-    idle: {
-//  👆 state
-        on: {
-            download: 'loading'
-//          👆 action    👆 target state
+export const resourceMachine = machinetje(
+    {
+//      👇 state
+        idle: {
+            on: {
+//              👇 action    👇 target state
+                download: 'loading'
+            }
+        },
+        loading: {
+            on: {
+                cancel: 'idle',
+                success: 'done',
+                failure: 'error'
+            }
+        },
+        done: {},
+        error: {
+            on: {
+                retry: 'loading'
+            }
         }
     },
-    loading: {
-        on: {
-            cancel: 'idle',
-            success: 'done',
-            failure: 'error'
-        }
-    },
-    done: {},
-    error: {
-        on: {
-            retry: 'loading'
-        }
+//  👇 initial state
+    'idle',
+//  👇 initial context
+    {
+        responseText: null,
+        errorMessage: null
     }
-}, 'idle');
+);
 ```
+
+Use `context` to store data (a.k.a. extended state) into your machinetje, such as fetch responses, error messages, remaining retry attemps, etc. You can write to the context when dispatching an action, or at the start of an effect, as shown later.
 
 ## Reading state, dispatching actions
 
@@ -96,8 +107,6 @@ Alternatively, use the `<SelectState>` helper component with snippets:
 </SelectState>
 ```
 
-Use `context` to store data (a.k.a. extended state) into your machinetje, such as fetch responses, error messages, etc. You can write to the context only at the start of effects, as shown later.
-
 ## Effects
 
 Effects let you write to the context of your machinetje, and interact with the world around it. Within effects, use the provided `dispatch` property to pass on data to the next state via actions.
@@ -119,17 +128,13 @@ export const resourceMachine = machinetje({
         },
         effect: loadResource
     },
-    done: {
-        // inline effect to save action data in the machinetje's context
-        effect: ({ setContext }, responseText) => setContext({ responseText })
-    },
+    done: {},
     error: {
         on: {
             retry: 'loading'
-        },
-        effect: ({ setContext }, errorMessage) => setContext({ errorMessage })
+        }
     }
-}, 'idle');
+}, 'idle', { responseText: null, errorMessage: null });
 
 async function loadResource({ setContext, dispatch, signal }) {
     // set a clear context to remove any potential old errors
@@ -142,11 +147,11 @@ async function loadResource({ setContext, dispatch, signal }) {
         if (!response.ok) {
             throw new Error(responseText);
         }
-        // pass the responseText on with the 'success' action
-        dispatch('success', responseText);
+        // dispatch 'success' action, and place the responseText in the context
+        dispatch('success', { responseText });
     }
     catch (error) {
-        dispatch('failure', error.message);
+        dispatch('failure', { errorMessage: error.message });
     }
 }
 ```
@@ -171,16 +176,14 @@ const heavyProcessingMachine = machinetje({
         },
         effect: doTheHardWork
     },
-    finished: {
-        effect: ({ setContext }, result) => setContext({ result })
-    },
-}, 'ready');
+    finished: {},
+}, 'ready', { result: null });
 
 function doTheHardWork({ dispatch }) {
     const worker = new Worker('heavy-script.js');
 
     worker.onmessage = (event) => {
-        dispatch('result', event.data);
+        dispatch('result', { result: event.data });
     };
 
     return cleanup() {
@@ -194,4 +197,173 @@ import { heavyProcessingMachine } from './heavy-processing-machine.js';
 const heavyProcessing = heavyProcessingMachine();
 heavyProcessing.dispatch('start');
 heavyProcessing.dispatch('cancel'); // <= causes the cleanup function to run
+```
+
+## State Machine Recovery
+
+Machinetjes can be recovered from a serialized state. Serializing a machinetje's full state is done by reading the `state` and `context` properties from the instance. The serialized state can be stored somewhere (e.g. in LocalStorage), and later used to recover the machinetje:
+
+```JavaScript
+import { someMachine } from './some-machine.js';
+
+const instance = someMachine();
+
+// storing the state
+const { state, context } = instance;
+const serialized = JSON.stringify({ state, context });
+localStorage.setItem('stored-state', serialized);
+
+// recovering the state
+const serialized = localStorage.getItem('stored-state');
+const { state, context } = JSON.parse(serialized);
+const recovered = someMachine(state, context);
+```
+
+Note that the recovered machinetje is a new instance. If the current recovered state has an effect, it will run, even if it had already run to completion in the original instance. This is so that if the machinetje is recovered in a resource loading state, for example, it will again start the effect to load the resource.
+
+## Examples
+
+### Fetching a resource
+
+```JavaScript
+// resource-machine.js
+
+export const resourceMachine = machinetje({
+    idle: {
+        on: {
+            download: 'loading'
+        }
+    },
+    loading: {
+        on: {
+            cancel: 'idle',
+            success: 'done',
+            failure: 'error'
+        },
+        effect: loadResource
+    },
+    done: {},
+    error: {
+        on: {
+            retry: 'loading'
+        },
+        effect: autoRetry,
+    }
+}, 'idle', { responseText: null, errorMessage: null, remainingAutoRetries: 2 });
+
+async function loadResource({ setContext, dispatch, signal }) {
+    setContext({});
+
+    try {
+        const response = await fetch('example.com/resource', { signal });
+        const responseText = await response.text();
+        if (!response.ok) {
+            throw new Error(responseText);
+        }
+        dispatch('success', { responseText });
+    }
+    catch (error) {
+        dispatch('failure', { errorMessage: error.message });
+    }
+}
+
+function autoRetry({ context, dispatch }) {
+    if (context.remainingAutoRetries > 0) {
+        const remainingAutoRetries = context.remainingAutoRetries - 1;
+        dispatch('retry', { remainingAutoRetries });
+    }
+}
+```
+
+```HTML
+<!-- Resource.svelte -->
+
+<script>
+    import { resourceMachine } from './resource-machine.js';
+
+    const resource = resourceMachine();
+</script>
+
+<SelectState machinetje={resource}>
+    {#snippet idle({ dispatch })}
+        <button onclick={() => dispatch('download')}>Download</button>
+    {/snippet}
+    {#snippet loading({ dispatch })}
+        <p>Downloading resource…</p>
+        <button onclick={() => dispatch('cancel')}>Cancel</button>
+    {/snippet}
+    {#snippet done({ context })}
+        <p>{context.responseText}</p>
+    {/snippet}
+    {#snippet error({ dispatch, context })}
+        <p>{context.errorMessage}</p>
+        <button onclick={() => dispatch('retry')}>Retry</button>
+    {/snippet}
+</SelectState>
+```
+
+### A simple stopwatch
+
+```JavaScript
+// stopwatch-machine.js
+
+export const stopwatchMachine = machinetje({
+    stopped: {
+        effect: ({ setContext }) => {
+            setContext({ startTime: null });
+        },
+        on: {
+            start: 'running'
+        }
+    },
+    running: {
+        effect: ({ setContext }) => {
+            setContext({ startTime: new Date() });
+        },
+        on: {
+            stop: 'stopped',
+            tick: 'running'
+        }
+    }
+}, 'stopped', { startTime: null });
+```
+
+```HTML
+<!-- Stopwatch.svelte -->
+
+<script>
+    import { stopwatchMachine } from './stopwatch-machine.js';
+
+    const stopwatch = stopwatchMachine();
+
+    let currentTime = $state(0);
+
+    $effect(() => {
+        if (stopwatch.state !== 'running') {
+            currentTime = 0;
+            return;
+        }
+
+        let nextFrame;
+        function renderLoop() {
+            const now = Date.now();
+            const elapsed = now.getTime() - stopwatch.context.startTime.getTime();
+            currentTime = elapsed / 1000;
+            nextFrame = requestAnimationFrame(renderLoop);
+        };
+        renderLoop();
+        return () => cancelAnimationFrame(nextFrame);
+    });
+</script>
+
+<p>{currentTime}</p>
+
+<SelectState machinetje={stopwatch}>
+    {#snippet stopped({ dispatch })}
+        <button onclick={() => dispatch('start')}>Start</button>
+    {/snippet}
+    {#snippet running({ dispatch })}
+        <button onclick={() => dispatch('stop')}>Stop</button>
+    {/snippet}
+</SelectState>
 ```
