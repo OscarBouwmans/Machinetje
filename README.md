@@ -13,29 +13,40 @@ Start by describing the possible states and their transitions, ending with the i
 
 import { machinetje } from 'machinetje';
 
-export const resourceMachine = machinetje({
-    idle: {
-//  👆 state
-        on: {
-            download: 'loading'
-//          👆 action    👆 target state
+export const resourceMachine = machinetje(
+    {
+//      👇 state
+        idle: {
+            on: {
+//              👇 action    👇 target state
+                download: 'loading'
+            }
+        },
+        loading: {
+            on: {
+                cancel: 'idle',
+                success: 'done',
+                failure: 'error'
+            }
+        },
+        done: {},
+        error: {
+            on: {
+                retry: 'loading'
+            }
         }
     },
-    loading: {
-        on: {
-            cancel: 'idle',
-            success: 'done',
-            failure: 'error'
-        }
-    },
-    done: {},
-    error: {
-        on: {
-            retry: 'loading'
-        }
+//  👇 initial state
+    'idle',
+//  👇 initial context
+    {
+        responseText: null,
+        errorMessage: null
     }
-}, 'idle');
+);
 ```
+
+Use `context` to store data (a.k.a. extended state) into your machinetje, such as fetch responses, error messages, remaining retry attemps, etc. You can write to the context when dispatching an action, or at the start of an effect, as shown later.
 
 ## Reading state, dispatching actions
 
@@ -96,8 +107,6 @@ Alternatively, use the `<SelectState>` helper component with snippets:
 </SelectState>
 ```
 
-Use `context` to store data (a.k.a. extended state) into your machinetje, such as fetch responses, error messages, etc. You can write to the context only at the start of effects, as shown later.
-
 ## Effects
 
 Effects let you write to the context of your machinetje, and interact with the world around it. Within effects, use the provided `dispatch` property to pass on data to the next state via actions.
@@ -119,15 +128,11 @@ export const resourceMachine = machinetje({
         },
         effect: loadResource
     },
-    done: {
-        // inline effect to save action data in the machinetje's context
-        effect: ({ setContext }, responseText) => setContext({ responseText })
-    },
+    done: {},
     error: {
         on: {
             retry: 'loading'
-        },
-        effect: ({ setContext }, errorMessage) => setContext({ errorMessage })
+        }
     }
 }, 'idle');
 
@@ -142,11 +147,11 @@ async function loadResource({ setContext, dispatch, signal }) {
         if (!response.ok) {
             throw new Error(responseText);
         }
-        // pass the responseText on with the 'success' action
-        dispatch('success', responseText);
+        // dispatch 'success' action, and place the responseText in the context
+        dispatch('success', { responseText });
     }
     catch (error) {
-        dispatch('failure', error.message);
+        dispatch('failure', { errorMessage: error.message });
     }
 }
 ```
@@ -171,16 +176,14 @@ const heavyProcessingMachine = machinetje({
         },
         effect: doTheHardWork
     },
-    finished: {
-        effect: ({ setContext }, result) => setContext({ result })
-    },
+    finished: {},
 }, 'ready');
 
 function doTheHardWork({ dispatch }) {
     const worker = new Worker('heavy-script.js');
 
     worker.onmessage = (event) => {
-        dispatch('result', event.data);
+        dispatch('result', { result: event.data });
     };
 
     return cleanup() {
