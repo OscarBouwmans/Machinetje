@@ -219,7 +219,7 @@ const { state, context } = JSON.parse(serialized);
 const recovered = someMachine(state, context);
 ```
 
-Note that the recovered machinetje is a new instance. Any effects for the current recovered state will be run, even if they had already run to completion in the original instance.
+Note that the recovered machinetje is a new instance. If the current recovered state has an effect, it will run, even if it had already run to completion in the original instance. This is so that if the machinetje is recovered in a resource loading state, for example, it will again start the effect to load the resource.
 
 ## Examples
 
@@ -362,7 +362,7 @@ export const stopwatchMachine = machinetje({
     {#snippet stopped({ dispatch })}
         <button onclick={() => dispatch('start')}>Start</button>
     {/snippet}
-    {#snippet running({ dispatch, context })}
+    {#snippet running({ dispatch })}
         <button onclick={() => dispatch('stop')}>Stop</button>
     {/snippet}
 </SelectState>
