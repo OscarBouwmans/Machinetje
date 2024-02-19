@@ -134,7 +134,7 @@ export const resourceMachine = machinetje({
             retry: 'loading'
         }
     }
-}, 'idle');
+}, 'idle', { responseText: null, errorMessage: null });
 
 async function loadResource({ setContext, dispatch, signal }) {
     // set a clear context to remove any potential old errors
@@ -177,7 +177,7 @@ const heavyProcessingMachine = machinetje({
         effect: doTheHardWork
     },
     finished: {},
-}, 'ready');
+}, 'ready', { result: null });
 
 function doTheHardWork({ dispatch }) {
     const worker = new Worker('heavy-script.js');
@@ -197,4 +197,151 @@ import { heavyProcessingMachine } from './heavy-processing-machine.js';
 const heavyProcessing = heavyProcessingMachine();
 heavyProcessing.dispatch('start');
 heavyProcessing.dispatch('cancel'); // <= causes the cleanup function to run
+```
+
+## Examples
+
+### Fetching a resource
+
+```JavaScript
+// resource-machine.js
+
+export const resourceMachine = machinetje({
+    idle: {
+        on: {
+            download: 'loading'
+        }
+    },
+    loading: {
+        on: {
+            cancel: 'idle',
+            success: 'done',
+            failure: 'error'
+        },
+        effect: loadResource
+    },
+    done: {},
+    error: {
+        on: {
+            retry: 'loading'
+        },
+        effect: autoRetry,
+    }
+}, 'idle', { responseText: null, errorMessage: null, remainingAutoRetries: 2 });
+
+async function loadResource({ setContext, dispatch, signal }) {
+    setContext({});
+
+    try {
+        const response = await fetch('example.com/resource', { signal });
+        const responseText = await response.text();
+        if (!response.ok) {
+            throw new Error(responseText);
+        }
+        dispatch('success', { responseText });
+    }
+    catch (error) {
+        dispatch('failure', { errorMessage: error.message });
+    }
+}
+
+function autoRetry({ context, dispatch }) {
+    if (context.remainingAutoRetries > 0) {
+        const remainingAutoRetries = context.remainingAutoRetries - 1;
+        dispatch('retry', { remainingAutoRetries });
+    }
+}
+```
+
+```HTML
+<!-- Resource.svelte -->
+
+<script>
+    import { resourceMachine } from './resource-machine.js';
+
+    const resource = resourceMachine();
+</script>
+
+<SelectState machinetje={resource}>
+    {#snippet idle({ dispatch })}
+        <button onclick={() => dispatch('download')}>Download</button>
+    {/snippet}
+    {#snippet loading({ dispatch })}
+        <p>Downloading resource…</p>
+        <button onclick={() => dispatch('cancel')}>Cancel</button>
+    {/snippet}
+    {#snippet done({ context })}
+        <p>{context.responseText}</p>
+    {/snippet}
+    {#snippet error({ dispatch, context })}
+        <p>{context.errorMessage}</p>
+        <button onclick={() => dispatch('retry')}>Retry</button>
+    {/snippet}
+</SelectState>
+```
+
+### A simple stopwatch
+
+```JavaScript
+// stopwatch-machine.js
+
+export const stopwatchMachine = machinetje({
+    stopped: {
+        effect: ({ setContext }) => {
+            setContext({ startTime: null });
+        },
+        on: {
+            start: 'running'
+        }
+    },
+    running: {
+        effect: ({ setContext }) => {
+            setContext({ startTime: new Date() });
+        },
+        on: {
+            stop: 'stopped',
+            tick: 'running'
+        }
+    }
+}, 'stopped', { startTime: null });
+```
+
+```HTML
+<!-- Stopwatch.svelte -->
+
+<script>
+    import { stopwatchMachine } from './stopwatch-machine.js';
+
+    const stopwatch = stopwatchMachine();
+
+    let currentTime = $state(0);
+
+    $effect(() => {
+        if (stopwatch.state !== 'running') {
+            currentTime = 0;
+            return;
+        }
+
+        let nextFrame;
+        function renderLoop() {
+            const now = Date.now();
+            const elapsed = now.getTime() - stopwatch.context.startTime.getTime();
+            currentTime = elapsed / 1000;
+            nextFrame = requestAnimationFrame(renderLoop);
+        };
+        renderLoop();
+        return () => cancelAnimationFrame(nextFrame);
+    });
+</script>
+
+<p>{currentTime}</p>
+
+<SelectState machinetje={stopwatch}>
+    {#snippet stopped({ dispatch })}
+        <button onclick={() => dispatch('start')}>Start</button>
+    {/snippet}
+    {#snippet running({ dispatch, context })}
+        <button onclick={() => dispatch('stop')}>Stop</button>
+    {/snippet}
+</SelectState>
 ```
