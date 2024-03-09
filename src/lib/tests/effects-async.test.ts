@@ -12,9 +12,9 @@ const testMachinetje = machinetje({
         on: {
             toA: 'a',
         },
-        async effect({ signal, context }) {
-            context.entry?.();
-            signal.onabort = () => context.abort?.();
+        async effect({ signal, value }) {
+            value.entry?.();
+            signal.onabort = () => value.abort?.();
             return new Promise((never) => never);
         }
     },
@@ -27,7 +27,7 @@ const testMachinetje = machinetje({
             dispatch('toA');
         }
     },
-}, 'a', {} as { entry?: () => void, abort?: () => void });
+}, 'a');
 
 describe('void effects', () => {
     test('signals are passed and aborted correctly', () => {

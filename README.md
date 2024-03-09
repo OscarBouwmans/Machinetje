@@ -52,7 +52,7 @@ Use `context` to store data (a.k.a. extended state) into your machinetje, such a
 
 In your component files, you can start a new instance of the machinetje:
 
-```HTML
+```Svelte
 <!-- SomeComponent.svelte -->
 
 <script>
@@ -60,10 +60,12 @@ In your component files, you can start a new instance of the machinetje:
 
     const resource = resourceMachine();
 
+    let fileName = $state('');
+
     function download() {
         // dispatch actions to your machinetje to change its state:
-        resource.dispatch('download');
-        //                 👆 action
+        resource.dispatch('download', fileName);
+        //                 👆 action   👆 action parameter
     }
 
     function cancel() {
@@ -72,7 +74,8 @@ In your component files, you can start a new instance of the machinetje:
 </script>
 
 {#if resource.state === 'idle'}
-    <button onclick={download}>Download the resource</button>
+    <input bind:value={fileName} />
+    <button onclick={download}>Download file</button>
 {:else if resource.state === 'loading'}
     <p>Downloading resource…</p>
     <button onclick={cancel}>Cancel</button>
@@ -83,7 +86,7 @@ In your component files, you can start a new instance of the machinetje:
 
 Alternatively, use the `<SelectState>` helper component with snippets:
 
-```HTML
+```Svelte
 <!-- SomeComponent.svelte -->
 
 <script>
@@ -91,10 +94,13 @@ Alternatively, use the `<SelectState>` helper component with snippets:
     import { resourceMachine } from './resource-machine.js';
 
     const resource = resourceMachine();
+
+    let fileName = $state('');
 </script>
 
 <SelectState machinetje={resource}>
     {#snippet idle({ dispatch })}
+        <input bind:value={fileName} />
         <button onclick={() => dispatch('download')}>Download</button>
     {/snippet}
     {#snippet loading({ dispatch })}
@@ -121,44 +127,57 @@ export const resourceMachine = machinetje({
         }
     },
     loading: {
+        effect: loadResource,
         on: {
             cancel: 'idle',
             success: 'done',
             failure: 'error'
-        },
-        effect: loadResource
+        }
     },
-    done: {},
+    done: {
+        effect({ value, setContext }) {
+            setContext({ responseText: value });
+        },
+    },
     error: {
+        effect({ value, setContext }) {
+            setContext({ errorMessage: value });
+        },
         on: {
             retry: 'loading'
-        }
+        },
     }
 }, 'idle', { responseText: null, errorMessage: null });
 
-async function loadResource({ setContext, dispatch, signal }) {
+async function loadResource({ value, setContext, dispatch, signal }) {
     // set a clear context to remove any potential old errors
     setContext({});
 
+    // `value` represents the optional extra parameter provided to `dispatch`
+    if (!value) {
+        return dispatch('failure', 'No file name provided');
+    }
+    const resourceUrl = `example.com/resource/${value}.zip`;
+
     try {
         // use the `signal` to allow cancelation of the request
-        const response = await fetch('example.com/resource', { signal });
+        const response = await fetch(resourceUrl, { signal });
         const responseText = await response.text();
         if (!response.ok) {
             throw new Error(responseText);
         }
         // dispatch 'success' action, and place the responseText in the context
-        dispatch('success', { responseText });
+        dispatch('success', responseText);
     }
     catch (error) {
-        dispatch('failure', { errorMessage: error.message });
+        dispatch('failure', error.message);
     }
 }
 ```
 
 When the effect is an `async` function, use the provided `signal` to handle cancelation cases (see [AbortSignal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal)), as exampled above. This signal will be aborted whenever a dispatched action causes a state transition.
 
-Alternatively, a sync function can be provided that returns a cleanup function:
+Alternatively, a sync effect can return a cleanup function:
 
 ```JavaScript
 // heavy-processing-machine.js
@@ -176,14 +195,18 @@ const heavyProcessingMachine = machinetje({
         },
         effect: doTheHardWork
     },
-    finished: {},
+    finished: {
+        effect({ value, setContext }) {
+            setContext({ result: value });
+        }
+    },
 }, 'ready', { result: null });
 
 function doTheHardWork({ dispatch }) {
     const worker = new Worker('heavy-script.js');
 
     worker.onmessage = (event) => {
-        dispatch('result', { result: event.data });
+        dispatch('result', event.data);
     };
 
     return cleanup() {
@@ -197,6 +220,50 @@ import { heavyProcessingMachine } from './heavy-processing-machine.js';
 const heavyProcessing = heavyProcessingMachine();
 heavyProcessing.dispatch('start');
 heavyProcessing.dispatch('cancel'); // <= causes the cleanup function to run
+```
+
+## Setting Context
+
+Context can be set in an effect, under the following conditions:
+- the context is set _synchronously_
+- the context is set _before_ any `dispatch`
+
+If these conditions are not met, the `setContext` call is ignored and a warning is logged to the console.
+
+```JavaScript
+// some-machine.js
+
+export const someMachine = machinetje({
+    idle: {
+        async effect({ setContext }) {
+            // this works:
+            setContext({ value: 'Hello' });
+
+            // this would not update the context:
+            setTimeout(() => setContext({ value: 'World' }), 1);
+
+            // this also would not update the context:
+            await somePromise();
+            setContext({ value: 'World' });
+        },
+        on: {
+            work: 'busy',
+        }
+    },
+    busy: {
+        effect({ setContext, dispatch }) {
+            // this works:
+            setContext({ value: 'Hello' });
+            dispatch('done');
+
+            // calls after dispatch are ignored:
+            setContext({ value: 'World' }); // <= ignored
+        },
+        on: {
+            done: 'idle',
+        }
+    }
+}, 'idle', { value: null });
 ```
 
 ## State Machine Recovery
@@ -235,19 +302,26 @@ export const resourceMachine = machinetje({
         }
     },
     loading: {
+        effect: loadResource,
         on: {
             cancel: 'idle',
             success: 'done',
             failure: 'error'
-        },
-        effect: loadResource
+        }
     },
-    done: {},
+    done: {
+        effect({ value, setContext }) {
+            setContext({ responseText: value });
+        }
+    },
     error: {
+        effect({ value, setContext, context, dispatch }) {
+            setContext({ errorMessage: value });
+            autoRetry({ context, setContext, dispatch, value });
+        },
         on: {
             retry: 'loading'
-        },
-        effect: autoRetry,
+        }
     }
 }, 'idle', { responseText: null, errorMessage: null, remainingAutoRetries: 2 });
 
@@ -260,22 +334,26 @@ async function loadResource({ setContext, dispatch, signal }) {
         if (!response.ok) {
             throw new Error(responseText);
         }
-        dispatch('success', { responseText });
+        setContext({ responseText });
+        dispatch('success', responseText);
     }
     catch (error) {
-        dispatch('failure', { errorMessage: error.message });
+        setContext({ errorMessage: error.message });
+        dispatch('failure', error.message);
     }
 }
 
-function autoRetry({ context, dispatch }) {
-    if (context.remainingAutoRetries > 0) {
-        const remainingAutoRetries = context.remainingAutoRetries - 1;
-        dispatch('retry', { remainingAutoRetries });
+function autoRetry({ context, setContext, dispatch }) {
+    if (context.remainingAutoRetries <= 0) {
+        return;
     }
+    const remainingAutoRetries = context.remainingAutoRetries - 1;
+    setContext({ remainingAutoRetries });
+    dispatch('retry');
 }
 ```
 
-```HTML
+```Svelte
 <!-- Resource.svelte -->
 
 <script>
@@ -321,14 +399,13 @@ export const stopwatchMachine = machinetje({
             setContext({ startTime: new Date() });
         },
         on: {
-            stop: 'stopped',
-            tick: 'running'
+            stop: 'stopped'
         }
     }
 }, 'stopped', { startTime: null });
 ```
 
-```HTML
+```Svelte
 <!-- Stopwatch.svelte -->
 
 <script>

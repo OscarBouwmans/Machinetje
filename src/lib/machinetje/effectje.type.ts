@@ -1,6 +1,7 @@
 
-export type EffectjeEnvironment<Action extends string, Context> = {
+export type EffectjeEnvironment<Action extends string, Context, ActionValue = any> = {
     action: Action | Symbol;
+    value?: ActionValue;
     context: Readonly<Context>;
     setContext: (context: Context) => void;
     dispatch: (action: Action, ...params: any[]) => void;

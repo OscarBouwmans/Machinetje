@@ -32,14 +32,14 @@ const testMachinetje = machinetje({
         on: {
             toA: 'a',
         },
-        async effect({ context, setContext }) {
+        async effect({ value, setContext }) {
             setContext({ value: 'K' });
             await Promise.resolve();
             setContext({ value: 'L' });
-            context.testCallback?.();
+            value.testCallback?.();
         }
     }
-}, 'a', {} as { value?: string, testCallback?: () => void });
+}, 'a', {} as { value?: string });
 
 describe('void effects', () => {
     test('context is by default an empty object', () => {

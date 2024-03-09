@@ -25,9 +25,7 @@ export function machinetje<
 
         enterCurrentState(initialAction as any);
 
-        function dispatch(action: Action, context?: Context): void
-        function dispatch(action: Action, updateContext?: (context: Context) => Context): void
-        function dispatch(action: Action, setContext?: ContextOrUpdateContext<Context>) {
+        function dispatch(action: Action, value?: any) {
             const targetState = config[state].on?.[action];
             if (!targetState) {
                 return;
@@ -37,11 +35,10 @@ export function machinetje<
             }
             exitCurrentState();
             state = targetState;
-            updateContext(setContext);
-            enterCurrentState(action);
+            enterCurrentState(action, value);
         };
 
-        function enterCurrentState(action: Action) {
+        function enterCurrentState(action: Action, value?: any) {
             const { effect } = config[state];
             if (!effect) {
                 return;
@@ -53,6 +50,7 @@ export function machinetje<
             let contextMayBeUpdated = true;
             const environment = {
                 action,
+                value,
                 get context() {
                     return context;
                 },
@@ -67,12 +65,12 @@ export function machinetje<
                     }
                     context = Object.freeze(unstate(newContext));
                 },
-                dispatch(action: Action, setContext?: Parameters<typeof dispatch>[1]) {
+                dispatch(action: Action, value?: any) {
                     if (signal.aborted) {
                         console.warn('Cannot dispatch an action after the effect has expired.');
                         return;
                     }
-                    dispatch(action, setContext);
+                    dispatch(action, value);
                 },
                 signal,
             } satisfies EffectjeEnvironment<Action, Context>;
@@ -83,17 +81,6 @@ export function machinetje<
             if (!(cleanup instanceof Promise)) {
                 runningEffectCleanup = cleanup;
             }
-        }
-
-        function updateContext(cOrSetC?: ContextOrUpdateContext<Context>) {
-            if (!cOrSetC) {
-                return;
-            }
-            if (typeof cOrSetC === 'function') {
-                context = cOrSetC(unstate(cOrSetC(context)));
-                return;
-            }
-            context = Object.freeze(unstate(cOrSetC));
         }
 
         function exitCurrentState() {

@@ -13,9 +13,9 @@ const testMachinetje = machinetje({
             toA: 'a',
             toB: 'b',
         },
-        effect({ context }) {
-            context.entry?.();
-            return context.exit;
+        effect({ value }) {
+            value.entry?.();
+            return value.exit;
         }
     },
     c: {
@@ -27,7 +27,7 @@ const testMachinetje = machinetje({
             dispatch('toB');
         }
     },
-}, 'a', {} as { entry?: () => void, exit?: () => void });
+}, 'a');
 
 describe('void effects', () => {
     test('effects are started and cleaned up', () => {
